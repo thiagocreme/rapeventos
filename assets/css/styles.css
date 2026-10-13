@@ -38,7 +38,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--header-h); }
 html:not(.lenis) { scroll-behavior: smooth; }
-html { overflow-x: hidden; color-scheme: dark; }
+html { overflow-x: hidden; color-scheme: dark only; }
 a, button { touch-action: manipulation; -webkit-tap-highlight-color: rgba(245, 192, 74, .25); }
 body {
   margin: 0; background: var(--bg); color: var(--text);
@@ -554,3 +554,9 @@ html:not(.js) .wa-float { opacity: 1; visibility: visible; transform: none; }
 .estatico .wa-float { display: none; }
 .tile-cta .btn { white-space: nowrap; min-height: 44px; padding: 10px 16px; font-size: .88rem; }
 @media (max-width: 420px) { .tile-cta .btn .icon { display: none; } .tile-cta { padding: 16px; } .tile-cta-title { font-size: 1.5rem; } }
+
+/* Celulares com "modo escuro forçado" (Chrome Android, Samsung Internet, Xiaomi) escurecem o dourado.
+   Declarar que o site já é escuro faz esses navegadores não recolorirem a página. */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark only; --gold: #f5c04a; --on-gold: #140e02; }
+}
