@@ -195,6 +195,8 @@
     const tile = document.createElement('figure');
     tile.className = `tile ${formatos.includes(item.formato) ? item.formato : 'quadrado'}`;
     tile.style.margin = '0';
+    tile.dataset.cat = item.categoria || 'festa';
+    tile.dataset.idx = i;
     const isVideo = item.tipo === 'video';
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -237,14 +239,75 @@
       </a>
     </div>`);
 
+  /* ---------- Vídeos da Grande Final: um de cada vez ---------- */
+  const clips = [...document.querySelectorAll('[data-clip]')];
+  clips.forEach(v => {
+    v.addEventListener('play', () => { clips.forEach(o => { if (o !== v) o.pause(); }); v.closest('.clip').classList.add('is-playing'); });
+    v.addEventListener('pause', () => v.closest('.clip').classList.remove('is-playing'));
+  });
+
+  /* ---------- A Grande Final: vídeo de fundo e player com som ---------- */
+  const cine = $('[data-cine]');
+  if (cine) {
+    const fundos = $$('[data-cine-bg]', cine);
+    const economia = reduce || (navigator.connection && navigator.connection.saveData);
+    const visivel = v => v.getClientRects().length > 0; // escondido no celular ou no computador = não carrega
+    const tocarFundos = () => fundos.forEach(v => {
+      if (!visivel(v)) { v.pause(); return; }
+      if (!v.src) v.src = v.dataset.src;
+      v.play().catch(() => {});
+    });
+    if (!economia && 'IntersectionObserver' in window) {
+      new IntersectionObserver(([en]) => {
+        if (en.isIntersecting) tocarFundos(); else fundos.forEach(v => v.pause());
+      }, { rootMargin: '150px 0px' }).observe(cine);
+    }
+    const dlg = $('[data-cine-dialog]', cine);
+    const player = $('[data-cine-player]', cine);
+    let quemAbriu = null;
+    $$('[data-cine-open]', cine).forEach(b => b.addEventListener('click', () => {
+      quemAbriu = b;
+      fundos.forEach(v => v.pause());
+      player.poster = b.dataset.cinePoster || '';
+      player.src = b.dataset.cineOpen;
+      player.setAttribute('aria-label', b.dataset.cineTitulo || 'Vídeo');
+      if (typeof dlg.showModal === 'function') { dlg.showModal(); if (lenis) lenis.stop(); }
+      player.play().catch(() => {});
+    }));
+    $('[data-cine-close]', cine).addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', () => {
+      player.pause(); player.removeAttribute('src'); player.load();
+      if (lenis) lenis.start();
+      if (!economia) tocarFundos();
+      if (quemAbriu) quemAbriu.focus();
+    });
+  }
+
+  /* ---------- Filtros da galeria ---------- */
+  let visiveis = items.map((_, i) => i);
+  $$('[data-filtro]').forEach(b => b.addEventListener('click', () => {
+    const f = b.dataset.filtro;
+    $$('[data-filtro]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    const tiles = $$('.tile[data-cat]', gallery);
+    visiveis = [];
+    tiles.forEach(t => {
+      const mostra = f === 'todos' || t.dataset.cat === f;
+      t.hidden = !mostra;
+      if (mostra) visiveis.push(Number(t.dataset.idx));
+    });
+    if (hasGsap && !reduce) gsap.fromTo(tiles.filter(t => !t.hidden), { opacity: 0, y: 24, clipPath: 'inset(0% 0% 0% 0%)' }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.05, ease: 'expo.out', overwrite: true });
+    if (window.ScrollTrigger) ScrollTrigger.refresh();
+  }));
+
   /* ---------- Lightbox ---------- */
   const dialog = $('[data-lightbox]');
   const stage = $('[data-lightbox-stage]');
   const caption = $('[data-lightbox-caption]');
   let current = 0, opener = null;
   const render = i => {
-    current = (i + items.length) % items.length;
-    const item = items[current];
+    current = (i + visiveis.length) % visiveis.length;
+    const item = items[visiveis[current]];
     stage.innerHTML = '';
     if (item.tipo === 'video') {
       const v = document.createElement('video');
@@ -257,13 +320,13 @@
       im.src = item.src; im.alt = item.alt || '';
       stage.appendChild(im);
     }
-    caption.textContent = `${item.alt || ''} (${current + 1} de ${items.length})`;
+    caption.textContent = `${item.alt || ''} (${current + 1} de ${visiveis.length})`;
     if (hasGsap && !reduce) gsap.fromTo(stage.firstChild, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.45, ease: 'expo.out' });
   };
   function openLightbox(i, from) {
     opener = from;
     $$('.tile video').forEach(v => v.pause());
-    render(i);
+    render(Math.max(0, visiveis.indexOf(i)));
     if (typeof dialog.showModal === 'function') {
       dialog.showModal();
       if (lenis) lenis.stop();
@@ -457,6 +520,18 @@
     start: 'top 90%',
     onEnter: batch => gsap.fromTo(batch, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1, ease: 'expo.out', stagger: 0.1, overwrite: true })
   });
+
+  // A Grande Final: a tela "abre" de um cartão até ocupar tudo, como uma cortina
+  const palco = document.querySelector('[data-cine-stage]');
+  if (palco) {
+    gsap.fromTo(palco, { clipPath: 'inset(9% 6% 9% 6% round 36px)' }, {
+      clipPath: 'inset(0% 0% 0% 0% round 0px)', ease: 'none',
+      scrollTrigger: { trigger: palco, start: 'top 95%', end: 'top 15%', scrub: true }
+    });
+    gsap.fromTo('.cine-bg', { scale: 1.25 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: palco, start: 'top bottom', end: 'bottom top', scrub: true } });
+    gsap.fromTo('.cine-phone', { y: 120, rotate: 12, opacity: 0 }, { y: 0, rotate: 5, opacity: 1, ease: 'none', scrollTrigger: { trigger: palco, start: 'top 70%', end: 'top 10%', scrub: true } });
+    gsap.from('.cine-tags li', { y: 20, opacity: 0, stagger: 0.08, duration: 0.7, ease: 'expo.out', scrollTrigger: { trigger: '.cine-tags', start: 'top 90%' } });
+  }
 
   // CTA final e rodapé
   gsap.fromTo('.final-video', { scale: 1.25 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '[data-final]', start: 'top bottom', end: 'center center', scrub: true } });
